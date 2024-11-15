@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "module": "CommonJS",  // or "ESNext" if you're using ES modules
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowJs": true,
+    "allowImportingTsExtensions": true,
+    "target": "es2021",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["*", "*.ts", "*.js"]
+    },
+    "outDir": "./dist",
+    "rootDir": "."
+  },
+  "include": [
+    "./**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+
+}
