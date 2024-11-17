@@ -5,7 +5,7 @@
     "esModuleInterop": true,
     "allowJs": true,
     "allowImportingTsExtensions": true,
-    "target": "es2021",
+    "target": "esnext",
     "baseUrl": ".",
     "paths": {
       "*": ["*", "*.ts", "*.js"]
@@ -14,7 +14,7 @@
     "rootDir": "."
   },
   "include": [
-    "./**/*.ts"
+    "./**/*.ts",
   ],
   "exclude": [
     "node_modules"

@@ -64,4 +64,5 @@ function printFullObject(obj: any, indent: number = 0, seen: Set<any> = new Set(
 export function printObject(obj: any): void {
     console.log(printFullObject(obj));
 }
+printObject({"hello":"world"})
 
