@@ -1,5 +1,12 @@
-import { SourceFile, Node, SyntaxKind, FunctionDeclaration, ArrowFunction, MethodDeclaration } from "ts-morph";
-import { validFuncDeclarations } from "./analyzer";
+import {
+    SourceFile,
+    Node,
+    SyntaxKind,
+    FunctionDeclaration,
+    ArrowFunction,
+    MethodDeclaration
+} from 'ts-morph';
+import { validFuncDeclarations } from './analyzer';
 
 export function findTargetFunction(
     sourceFile: SourceFile,
@@ -8,6 +15,7 @@ export function findTargetFunction(
     // Look for function declaration
     let targetFunction = sourceFile.getFunction(functionName);
     if (targetFunction) {
+        console.log('Returning Function');
         return targetFunction;
     }
 
@@ -16,6 +24,7 @@ export function findTargetFunction(
     if (variableDeclaration) {
         const initializer = variableDeclaration.getInitializer();
         if (Node.isArrowFunction(initializer)) {
+            console.log('Returning Arrow Function');
             return initializer;
         }
     }
@@ -25,6 +34,7 @@ export function findTargetFunction(
     for (const classDeclaration of classes) {
         const method = classDeclaration.getMethod(functionName);
         if (method) {
+            console.log('Returning Method');
             return method;
         }
     }
@@ -34,9 +44,11 @@ export function findTargetFunction(
     for (const [name, declarations] of exportedDeclarations) {
         if (name === functionName) {
             const declaration = declarations[0];
-            if (Node.isFunctionDeclaration(declaration) ||
+            if (
+                Node.isFunctionDeclaration(declaration) ||
                 Node.isArrowFunction(declaration) ||
-                Node.isMethodDeclaration(declaration)) {
+                Node.isMethodDeclaration(declaration)
+            ) {
                 return declaration;
             }
         }

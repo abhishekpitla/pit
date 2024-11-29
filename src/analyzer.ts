@@ -1,4 +1,5 @@
 // src/analyzer.ts
+import chalk from 'chalk';
 import {
     Node,
     SyntaxKind,
@@ -9,6 +10,7 @@ import {
     FunctionLikeDeclaration,
     ts
 } from 'ts-morph';
+import { printObject } from './print-helpers';
 
 export type validFuncDeclarations = FunctionDeclaration | ArrowFunction | MethodDeclaration;
 interface CallLocation {
@@ -25,7 +27,7 @@ export interface CallInfo {
     column: number;
     type?: string;
     arguments: string[];
-    node: Node<ts.FunctionLikeDeclaration>;
+    node?: Node<ts.FunctionLikeDeclaration>;
 }
 
 function extractCallInfo(node: CallExpression): CallInfo | null {
@@ -49,9 +51,8 @@ function extractCallInfo(node: CallExpression): CallInfo | null {
         const typeChecker = node.getProject().getTypeChecker();
         const signature = typeChecker.getTypeAtLocation(node);
         const type = signature ? signature.getText() : undefined;
-        // console.log({ text: node.getText(), type, definition_type: node.getKindName() });
-        if (type.slice(-9) === 'Decorator') {
-            return;
+        if (type?.slice(-9) === 'Decorator') {
+            return null;
         }
 
         // Get argument information
@@ -62,23 +63,29 @@ function extractCallInfo(node: CallExpression): CallInfo | null {
         const declaration = declarations?.[0];
         const definitionType = declaration.getKindName();
         let call_flag = false;
-        if (definitionType.slice(-11) === 'Declaration') {
-            call_flag = true;
-        }
+        // console.log({ text: node.getText(), type, definition_type: node.getKindName(), call_flag ,bind:Node.isObjectBindingPattern(node),definitionType});
         let startLine = 0;
         let endLine = 0;
         // Get location of declaration
-        if (declaration) {
-            const startPos = declaration.getStart();
-            const endPos = declaration.getEnd();
-            const sourceFile = declaration.getSourceFile();
-            const startObj = sourceFile.getLineAndColumnAtPos(startPos);
-            const endObj = sourceFile.getLineAndColumnAtPos(endPos);
-            startLine = startObj.line;
-            endLine = endObj.line;
-        }
+
+        let body: any={}
+        try {
+            body = (declaration as any).getBody();
+            if (declaration && body) {
+                if (body) {
+                    const startPos = body.getStart();
+                    const endPos = body.getEnd();
+                    const sourceFile = declaration.getSourceFile();
+                    const startObj = sourceFile.getLineAndColumnAtPos(startPos);
+                    const endObj = sourceFile.getLineAndColumnAtPos(endPos);
+                    startLine = startObj.line;
+                    endLine = endObj.line;
+                }
+            }
+        } catch (e) {return}
 
         if (Node.isFunctionLikeDeclaration(declaration)) {
+            call_flag = true;
             return {
                 name,
                 line,
@@ -93,9 +100,24 @@ function extractCallInfo(node: CallExpression): CallInfo | null {
                     endLine
                 }
             };
+        } else {
+            return {
+                name,
+                line,
+                column,
+                type,
+                call_flag: false,
+                arguments: callArguments,
+                location: {
+                    filePath: sourceFile.getFilePath(),
+                    startLine,
+                    endLine
+                }
+            };
         }
     } catch (error) {
         console.warn(`Warning: Could not analyze call expression: ${node.getText()}`);
+        console.warn(error)
         return null;
     }
 }
@@ -107,7 +129,7 @@ export function analyzeFunction(functionNode: Node<ts.FunctionLikeDeclaration>):
             const callInfo = extractCallInfo(node);
             if (callInfo) {
                 calls.push(callInfo);
-                if (callInfo.call_flag === true) {
+                if (callInfo.call_flag === true && callInfo?.node) {
                     analyzeFunction(callInfo.node).forEach(item => calls.push(item));
                 }
             }

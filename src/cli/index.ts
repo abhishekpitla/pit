@@ -1,8 +1,8 @@
 import { ArrowFunction, FunctionDeclaration, MethodDeclaration, Project } from 'ts-morph';
 import chalk from 'chalk';
 import path from 'path';
-import { analyzeFunction, CallInfo, validFuncDeclarations } from './analyzer';
-import { findTargetFunction } from './utils';
+import { analyzeFunction, CallInfo, validFuncDeclarations } from '.././analyzer';
+import { findTargetFunction } from '.././utils';
 
 const [, , filePath, functionName] = process.argv;
 
