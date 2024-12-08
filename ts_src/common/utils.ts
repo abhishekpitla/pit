@@ -1,13 +1,13 @@
-import {
-    SourceFile,
-    Node,
-    SyntaxKind,
-    FunctionDeclaration,
-    ArrowFunction,
-    MethodDeclaration
-} from 'ts-morph';
-import { validFuncDeclarations } from './analyzer';
+import { SourceFile, Node, Project } from 'ts-morph';
+import { processControllerFunctions, validFuncDeclarations } from './analyzer';
 
+export function findTargetFunctionFromFileString(
+    project: Project,
+    sourceFile: string,
+    functionName: string
+): validFuncDeclarations | undefined {
+    return findTargetFunction(project.addSourceFileAtPath(sourceFile), functionName);
+}
 export function findTargetFunction(
     sourceFile: SourceFile,
     functionName: string
@@ -15,7 +15,7 @@ export function findTargetFunction(
     // Look for function declaration
     let targetFunction = sourceFile.getFunction(functionName);
     if (targetFunction) {
-        console.log('Returning Function');
+        // console.log('Returning Function');
         return targetFunction;
     }
 
@@ -24,7 +24,7 @@ export function findTargetFunction(
     if (variableDeclaration) {
         const initializer = variableDeclaration.getInitializer();
         if (Node.isArrowFunction(initializer)) {
-            console.log('Returning Arrow Function');
+            // console.log('Returning Arrow Function');
             return initializer;
         }
     }
@@ -34,7 +34,7 @@ export function findTargetFunction(
     for (const classDeclaration of classes) {
         const method = classDeclaration.getMethod(functionName);
         if (method) {
-            console.log('Returning Method');
+            // console.log('Returning Method');
             return method;
         }
     }

@@ -8,12 +8,13 @@
     "start": "ts-node src/index.ts"
   },
   "dependencies": {
-    "ts-morph": "^19.0.0",
-    "chalk": "^4.1.2"
+    "chalk": "^4.1.2",
+    "protobufjs": "^7.4.0",
+    "ts-morph": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "typescript": "^5.0.0",
-    "ts-node": "^10.9.1"
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.0"
   }
 }
