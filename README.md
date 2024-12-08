@@ -1,22 +1,22 @@
-# pit
+# PIT
 
-A git-wrapper that tracks changes in backend repositories.
+A Git wrapper that tracks changes in backend repositories.
 
-## What is pit?
+## What is PIT?
 
-`pit` is born from the idea that modern web development cares more about changes in endpoints as opposed to files. 
+`PIT` is born from the idea that modern web development cares more about changes in endpoints than files. 
 
-## Why pit?
+## Why PIT?
 
-Modern web practices make it so that a simple change to one endpoint most likely results changes to multiple files. The scope of a change in such repositories is better identified by the endpoints it touched than the files that changed.
+Modern web practices often result in a simple endpoint change affecting multiple files. In such repositories, the scope of a change is better identified by the endpoints it touches rather than the files that changed.
 
-## Where is pit used?
+## Where is PIT used?
 
 ### Tests
-Pit can be used to better decide which the scope of testing requirement after each change at a server level. It can eliminate the need for running tests that are irrelavant to the change, allowing users to aim for better coverage of relevant ones.
+PIT can be used to better determine the scope of testing requirements after each server-level change. It eliminates the need for running irrelevant tests, allowing users to aim for better coverage of relevant ones.
 
-### Access-control
-Tracking at an endpoint level allows organisations to better control resource access. This can allow for more control to be placed in the hands of devOps tools or junior develops reducing the friction, overhead required for safety. Endpoints which correspond to crutial fucntionality can be kept immutable while allowing un-hindered feature developement.
+### Access Control
+Tracking at an endpoint level allows organizations to better control resource access. This enables more control to be placed in the hands of DevOps tools or junior developers, reducing friction and overhead required for safety. Endpoints that correspond to crucial functionality can be kept immutable while allowing unhindered feature development.
 
 ## Current Features
 
@@ -31,10 +31,10 @@ Tracking at an endpoint level allows organisations to better control resource ac
 - Support for staged/working tree changes
 - CI/CD integration
 
-## Installation (Coming Soon)
+## Installation
 
 ```bash
-brew install -g pit 
+npm install -g pit
 ```
 
 ## Usage
