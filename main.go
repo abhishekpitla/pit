@@ -57,8 +57,12 @@ func findGitRoot(path string) (string, error) {
 
 func validateCommandLineArgs() string {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: program <path-to-ts-file>")
-		os.Exit(1)
+		inputPath, err := os.Getwd()
+		if err != nil {
+			fmt.Println("Error getting current working directory", err)
+			os.Exit(1)
+		}
+		return inputPath
 	}
 	return os.Args[1]
 }
@@ -85,16 +89,16 @@ func validateTypeScriptFile(tsPath string) string {
 
 func printPaths(gitRoot, absPath, framework string) {
 	// Labels
-	label := color.New(color.FgHiBlack, color.Bold)
+	label := color.New(color.FgWhite, color.Bold)
 	// Values - Using cyan which is popular in modern CLIs
 	value := color.New(color.FgCyan)
+	frameWorkValue := color.New(color.FgBlue)
 
-	fmt.Println()
 	label.Print("Git root: ")
 	value.Printf("%s\n", gitRoot)
 
 	label.Print("Framework: ")
-	value.Printf("%s\n", framework)
+	frameWorkValue.Printf("%s\n", framework)
 
 	label.Print("TypeScript entrypoint: ")
 	value.Printf("%s\n", absPath)
@@ -148,14 +152,9 @@ func readFunctionsFromPipe(pipe *os.File) []FunctionRange {
 }
 
 func main() {
-	// tsPath := validateCommandLineArgs()
+	inputPath := validateCommandLineArgs()
 	// cleanPath := validateTypeScriptFile(tsPath)
 
-	inputPath, err := os.Getwd()
-	if err != nil {
-		fmt.Println("Error getting current working directory", err)
-		os.Exit(1)
-	}
 	absPath, err := filepath.Abs(inputPath)
 	if err != nil {
 		fmt.Printf("Error getting absolute path: %s\n", err)
@@ -178,7 +177,8 @@ func main() {
 	setupSignalHandler(pipeName)
 
 	s := spinner.New(spinner.CharSets[43], 100*time.Millisecond)
-	s.Prefix = "Waiting for Typescript parser "
+	s.Color("yellow") // Colors the spinner characters
+	s.Prefix = color.YellowString("Waiting for Typescript parser ")
 	s.Start()
 
 	cmd := executeTypeScriptProcess(mainPath, pipeName)
@@ -256,7 +256,8 @@ func handleRepo(repoPath string, functions []FunctionRange) {
 		return
 	}
 
-	affectedFunctions := make(map[string]bool)
+	addFunctions := make(map[string]bool)
+	removeFunctions := make(map[string]bool)
 
 	for _, filePatch := range patch.FilePatches() {
 		from, to := filePatch.Files()
@@ -286,17 +287,17 @@ func handleRepo(repoPath string, functions []FunctionRange) {
 				// Check for affected functions only on additions
 				chunkAffectedFunctions := findFunctionsWithOverlappingChunks(functions, filename, startLine, endLine)
 				for _, fn := range chunkAffectedFunctions {
-					affectedFunctions[fn] = true
+					addFunctions[fn] = true
 				}
 
 				lineNo += len(lines)
 
 			case 1: // Deletion
-				fmt.Printf("Deleted from %s (lines %d-%d):\n%s",
-					filename, startLine, endLine, chunk.Content())
+				// fmt.Printf("Deleted from %s (lines %d-%d):\n%s",
+				// 	filename, startLine, endLine, chunk.Content())
 				chunkAffectedFunctions := findFunctionsWithOverlappingChunks(functions, filename, startLine, endLine)
 				for _, fn := range chunkAffectedFunctions {
-					affectedFunctions[fn] = true
+					removeFunctions[fn] = true
 				}
 
 				lineNo += len(lines)
@@ -310,31 +311,52 @@ func handleRepo(repoPath string, functions []FunctionRange) {
 	}
 
 	// Convert map to slice for final result
-	result := make([]string, 0, len(affectedFunctions))
-	for fn := range affectedFunctions {
-		result = append(result, fn)
+	addResult := make([]string, 0, len(addFunctions))
+	removeResult := make([]string, 0, len(removeFunctions))
+	for fn := range addFunctions {
+		addResult = append(addResult, fn)
+	}
+	for fn := range removeFunctions {
+		removeResult = append(removeResult, fn)
 	}
 
-	prettyPrintResult(result)
+	printBothResults(addResult, removeResult, "last commit")
 }
-func prettyPrintResult(result []string) {
-	red := color.New(color.FgRed)
+func printBothResults(adds, deletes []string, treeType string) {
+	addLen := len(adds)
+	delLen := len(deletes)
+	if addLen > 0 {
+		fmt.Printf("Functions with additions in %s:\n", treeType)
+		prettyPrintResult(adds, true) // true for add
+	}
+	if delLen > 0 && addLen > 0 {
+		fmt.Println()
+	}
+	if delLen > 0 {
+		fmt.Printf("Functions with deletions in %s:\n", treeType)
+		prettyPrintResult(deletes, false)
+	}
+	if addLen == 0 && delLen == 0 {
+		fmt.Printf("No functions changed in %s\n", treeType)
+	}
+}
+func prettyPrintResult(result []string, add bool) {
+
+	verb := color.New(color.FgRed)
+	if add {
+		verb = color.New(color.FgGreen)
+	}
 	blue := color.New(color.FgBlue)
-	for i, s := range result {
-		if i == 0 {
-			fmt.Println()
-		}
+	for _, s := range result {
 		parts := strings.SplitN(s, " ", 2)
 		fmt.Print("\t") // Add tab at start of each line
 		if len(parts) == 1 {
-			red.Println(parts[0])
+			verb.Println(parts[0])
 		} else {
-			red.Print(parts[0])
+			verb.Print(parts[0])
 			blue.Println(" " + parts[1])
 		}
 	}
-
-	fmt.Println()
 }
 
 func createPipe(pipeName string) error {
