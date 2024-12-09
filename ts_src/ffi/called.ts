@@ -18,7 +18,7 @@ async function main() {
     try {
         const absolutePath = path.resolve(process.cwd(), filePath);
         const controllers = extractController(absolutePath);
-        processControllerFunctions(controllers,pipePath);
+        processControllerFunctions(controllers, pipePath);
         console.error('Finished TS');
     } catch (error) {
         console.error(chalk.red('Error analyzing function:'), error);
