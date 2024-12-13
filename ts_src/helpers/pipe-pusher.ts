@@ -1,16 +1,20 @@
 import * as fs from 'fs';
 import { CallInfo } from 'ts_src/common/analyzer';
-interface FunctionRange {
+export interface FunctionRange {
     ControllerName: string;
     FunctionName: string;
     Filename: string;
     StartLine: number;
     EndLine: number;
 }
-export async function writeToNamedPipe(callInfoArray: CallInfo[], pipePath: string): Promise<void> {
+export async function writeToNamedPipe(
+    callInfoArray: CallInfo[],
+    pipePath: string,
+    published_path: string
+): Promise<void> {
     // Transform CallInfo array to FunctionRange array
     const functionRanges: FunctionRange[] = callInfoArray.map(callInfo => ({
-        ControllerName: callInfo.published_path ?? undefined,
+        ControllerName: published_path ?? undefined,
         FunctionName: callInfo.name.replaceAll('\n', ''),
         Filename: callInfo.location.filePath,
         StartLine: callInfo.location.startLine,

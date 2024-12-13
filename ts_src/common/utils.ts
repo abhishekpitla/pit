@@ -1,5 +1,5 @@
 import { SourceFile, Node, Project } from 'ts-morph';
-import { processControllerFunctions, validFuncDeclarations } from './analyzer';
+import { validFuncDeclarations } from './analyzer';
 
 export function findTargetFunctionFromFileString(
     project: Project,

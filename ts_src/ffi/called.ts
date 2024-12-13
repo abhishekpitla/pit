@@ -1,8 +1,8 @@
 import { Project } from 'ts-morph';
-import { processControllerFunctions } from '../../ts_src/common/analyzer';
 import { extractController } from '../../ts_src/route-extractor/nestjs';
 import chalk from 'chalk';
 import path from 'path';
+import { processControllerFunctions } from 'ts_src/common/analyzer';
 
 async function main() {
     const pipePath = process.argv[3];

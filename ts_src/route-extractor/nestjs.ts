@@ -102,7 +102,7 @@ class NestRouteExtractor {
                                 routes.push({
                                     filename: this.sourceFile.fileName,
                                     controllerName: node.name.text,
-                                    path: `${controllerPath}${methodPath}`.replace(/\/+/g, '/'),
+                                    path: `${controllerPath}/${methodPath}`.replace(/\/+/g, '/'),
                                     nestHttpMethod: httpMethod,
                                     methodNode: member,
                                     functionName: String((member.name as ts.Identifier).escapedText)
@@ -143,29 +143,31 @@ function extractController(file: string) {
 
     const routes = NestRouteExtractor.extractRoutesFromProgram(program);
 
-    const project = new Project();
+    // const project = new Project();
     // const project = new Project({
     //     tsConfigFilePath: findTsConfig(filePath)
     // });
 
-    project.addSourceFileAtPath(file);
-    project.resolveSourceFileDependencies();
-    for (const route of routes) {
-        // controllerDeclarations.push((route.methodNode.name as ts.Identifier).escapedText);
-        console.log(
-            `${route.nestHttpMethod} ${route.path} -> ${route.controllerName}/${(route.methodNode.name as ts.Identifier).escapedText}`
-        );
-        delete route.methodNode;
-        console.log(route);
-    }
+    // project.addSourceFileAtPath(file);
+    // project.resolveSourceFileDependencies();
+    // for (const route of routes) {
+    //     // controllerDeclarations.push((route.methodNode.name as ts.Identifier).escapedText);
+    //     console.log(
+    //         `${route.nestHttpMethod} ${route.path} -> ${route.controllerName}/${(route.methodNode.name as ts.Identifier).escapedText}`
+    //     );
+    //     delete route.methodNode;
+    //     console.log(route);
+    // }
     return routes
         .map(obj => {
             return {
-                declaration: findTargetFunctionFromFileString(
-                    project,
-                    obj.filename,
-                    obj.functionName
-                ),
+                // declaration: findTargetFunctionFromFileString(
+                //     project,
+                //     obj.filename,
+                //     obj.functionName
+                // ),
+                function_name: obj.functionName,
+                file:obj.filename,
                 controller: obj.controllerName,
                 published_path: obj.nestHttpMethod + ' ' + obj.path
             };

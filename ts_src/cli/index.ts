@@ -4,9 +4,10 @@ import { extractController } from '../route-extractor/nestjs';
 import {
     analyzeFunction,
     processControllerFunctions,
-    processFunctions
+    processFunctions,
+    validFuncDeclarations
 } from '../../ts_src/common/analyzer';
-import { Project } from 'ts-morph';
+import { Project, SourceFile } from 'ts-morph';
 
 async function main(filePath: string, functionName: string) {
     try {
@@ -19,10 +20,14 @@ async function main(filePath: string, functionName: string) {
 
             project.addSourceFileAtPath(absolutePath);
             project.resolveSourceFileDependencies();
-            const files = project.getSourceFiles();
+            const files: SourceFile[] = project.getSourceFiles();
             processFunctions(files, [functionName]);
         } else {
-            const controllers = extractController(absolutePath);
+            const controllers: {
+                declaration: validFuncDeclarations;
+                controller: string;
+                published_path: string;
+            }[] = extractController(absolutePath);
             processControllerFunctions(controllers);
         }
     } catch (error) {

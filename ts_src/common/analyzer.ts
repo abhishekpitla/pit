@@ -7,35 +7,70 @@ import {
     MethodDeclaration,
     ts,
     SourceFile,
-    FunctionLikeDeclaration
+    FunctionLikeDeclaration,
+    Project
 } from 'ts-morph';
-import { findTargetFunction } from './utils';
+import { findTargetFunction, findTargetFunctionFromFileString } from './utils';
 import { printResults } from '../cli/print';
-import { writeToNamedPipe } from '../../ts_src/helpers/pipe-pusher';
+import { FunctionRange, writeToNamedPipe } from '../../ts_src/helpers/pipe-pusher';
 
 export type validFuncDeclarations = FunctionDeclaration | ArrowFunction | MethodDeclaration;
-interface CallLocation {
-    filePath: string;
-    startLine: number;
-    endLine: number;
-}
 
+export function returnFunctions(
+    params: {
+        published_path: string;
+        function_name: string;
+        file: string;
+        controller: string;
+    }[],
+    main: string
+) {
+    const callsArr: FunctionRange[] = [];
+
+    const project = new Project();
+    project.addSourceFileAtPath(main);
+    project.resolveSourceFileDependencies();
+    params.forEach(({ file, controller, published_path, function_name }) => {
+        const declaration = findTargetFunctionFromFileString(project, file, function_name);
+        const callInfoArray = analyzeFunction(declaration, controller);
+
+        const functionRanges: FunctionRange[] = callInfoArray.map(callInfo => ({
+            ControllerName: published_path ?? undefined,
+            FunctionName: callInfo.name.replaceAll('\n', ''),
+            Filename: callInfo.location.filePath,
+            StartLine: callInfo.location.startLine,
+            EndLine: callInfo.location.endLine
+        }));
+
+        callsArr.push(...functionRanges);
+    });
+    return callsArr;
+}
+// export function returnFunctions(
+//     params: { published_path: string; declaration: validFuncDeclarations; controller: string }[]
+// ) {
+//     const callsArr: FunctionRange[] = [];
+//     params.forEach(({ declaration, controller, published_path }) => {
+//         const callInfoArray = analyzeFunction(declaration, controller);
+//
+//         const functionRanges: FunctionRange[] = callInfoArray.map(callInfo => ({
+//             ControllerName: published_path ?? undefined,
+//             FunctionName: callInfo.name.replaceAll('\n', ''),
+//             Filename: callInfo.location.filePath,
+//             StartLine: callInfo.location.startLine,
+//             EndLine: callInfo.location.endLine
+//         }));
+//         callsArr.push(...functionRanges);
+//     });
+//     return callsArr;
+// }
 export function processControllerFunctions(
     params: { published_path: string; declaration: validFuncDeclarations; controller: string }[],
     pipeName?: string
 ) {
-    const callArr = [];
     params.forEach(({ declaration, controller, published_path }) => {
-        const calls = analyzeFunction(declaration, controller);
-        callArr.push(...calls);
-
-        calls.forEach(obj => (obj.published_path = published_path));
-        printResults(calls);
+        writeToNamedPipe(analyzeFunction(declaration, controller), pipeName, published_path);
     });
-
-    if (pipeName) {
-        writeToNamedPipe(callArr, pipeName);
-    }
 }
 export function processFunctions(files: SourceFile[], functionNames: string[]) {
     functionNames.forEach(functionName => {
@@ -89,11 +124,13 @@ export interface CallInfo {
 }
 
 function getNodeStartPosition(node: Node): number {
-    if (Node.isFunctionDeclaration(node) || Node.isMethodDeclaration(node)) {
+    if (Node.isMethodDeclaration(node)) {
         const decorators = (node as any).getDecorators();
         if (decorators && decorators.length > 0) {
             return decorators[0].getStart();
         }
+        return node.getNameNode()?.getStart() ?? node.getStart();
+    } else if (Node.isFunctionDeclaration(node)) {
         return node.getNameNode()?.getStart() ?? node.getStart();
     }
     return node.getStart();
