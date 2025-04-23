@@ -15,6 +15,8 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 func findGitRoot(path string) (string, error) {
@@ -55,16 +57,49 @@ func findGitRoot(path string) (string, error) {
 	}
 }
 
-func validateCommandLineArgs() string {
-	if len(os.Args) < 2 {
+type GitRefs struct {
+	Path     string
+	BaseRef  string
+	HeadRef  string
+}
+
+func validateCommandLineArgs() GitRefs {
+	gitRefs := GitRefs{}
+	
+	// Parse args based on count
+	switch len(os.Args) {
+	case 1: // No args provided, use current directory and HEAD^..HEAD
 		inputPath, err := os.Getwd()
 		if err != nil {
 			fmt.Println("Error getting current working directory", err)
 			os.Exit(1)
 		}
-		return inputPath
+		gitRefs.Path = inputPath
+		gitRefs.BaseRef = "HEAD^"
+		gitRefs.HeadRef = "HEAD"
+	case 2: // Just path provided
+		gitRefs.Path = os.Args[1]
+		gitRefs.BaseRef = "HEAD^"
+		gitRefs.HeadRef = "HEAD"
+	case 3: // Path and one ref provided - use as base, HEAD as head
+		gitRefs.Path = os.Args[1]
+		gitRefs.BaseRef = os.Args[2]
+		gitRefs.HeadRef = "HEAD"
+	case 4: // Path and both refs provided
+		gitRefs.Path = os.Args[1]
+		gitRefs.BaseRef = os.Args[2]
+		gitRefs.HeadRef = os.Args[3]
+	default:
+		fmt.Println("Usage: pit [path] [base-ref] [head-ref]")
+		fmt.Println("Examples:")
+		fmt.Println("  pit                          # Compare HEAD^ and HEAD in current directory")
+		fmt.Println("  pit /path/to/repo            # Compare HEAD^ and HEAD in specified directory")
+		fmt.Println("  pit /path/to/repo main       # Compare main and HEAD")
+		fmt.Println("  pit /path/to/repo v1.0 v2.0  # Compare tag v1.0 with tag v2.0")
+		os.Exit(1)
 	}
-	return os.Args[1]
+	
+	return gitRefs
 }
 
 func validateTypeScriptFile(tsPath string) string {
@@ -152,10 +187,10 @@ func readFunctionsFromPipe(pipe *os.File) []FunctionRange {
 }
 
 func main() {
-	inputPath := validateCommandLineArgs()
+	gitRefs := validateCommandLineArgs()
 	// cleanPath := validateTypeScriptFile(tsPath)
 
-	absPath, err := filepath.Abs(inputPath)
+	absPath, err := filepath.Abs(gitRefs.Path)
 	if err != nil {
 		fmt.Printf("Error getting absolute path: %s\n", err)
 		os.Exit(1)
@@ -172,6 +207,12 @@ func main() {
 	}
 
 	printPaths(gitRoot, mainPath, framework.String())
+	
+	// Print the Git refs being compared
+	label := color.New(color.FgWhite, color.Bold)
+	value := color.New(color.FgCyan)
+	label.Print("Comparing Git refs: ")
+	value.Printf("%s..%s\n", gitRefs.BaseRef, gitRefs.HeadRef)
 
 	pipeName := setupPipe()
 	setupSignalHandler(pipeName)
@@ -199,7 +240,7 @@ func main() {
 	}
 	s.Stop()
 
-	handleRepo(gitRoot, functions)
+	handleRepo(gitRoot, functions, gitRefs.BaseRef, gitRefs.HeadRef)
 }
 
 type FunctionRange struct {
@@ -229,28 +270,143 @@ func findFunctionsWithOverlappingChunks(functions []FunctionRange, chunkFilename
 	return overlappingFunctions
 }
 
-func handleRepo(repoPath string, functions []FunctionRange) {
+// resolveGitRef resolves a git reference (commit, branch, tag) to a commit object
+func resolveGitRef(repo *git.Repository, refName string) (*object.Commit, error) {
+	// If it's "HEAD" or "HEAD^", handle specially
+	if refName == "HEAD" {
+		ref, err := repo.Head()
+		if err != nil {
+			return nil, fmt.Errorf("error getting HEAD: %w", err)
+		}
+		return repo.CommitObject(ref.Hash())
+	}
+	
+	if refName == "HEAD^" {
+		ref, err := repo.Head()
+		if err != nil {
+			return nil, fmt.Errorf("error getting HEAD: %w", err)
+		}
+		commit, err := repo.CommitObject(ref.Hash())
+		if err != nil {
+			return nil, fmt.Errorf("error getting HEAD commit: %w", err)
+		}
+		parent, err := commit.Parent(0)
+		if err != nil {
+			return nil, fmt.Errorf("error getting parent commit: %w", err)
+		}
+		return parent, nil
+	}
+	
+	// Try to resolve as a hash
+	hash := plumbing.NewHash(refName)
+	if !hash.IsZero() {
+		commit, err := repo.CommitObject(hash)
+		if err == nil {
+			return commit, nil
+		}
+	}
+	
+	// Try to resolve as a reference: first check exact ref
+	ref, err := repo.Reference(plumbing.ReferenceName(refName), true)
+	if err == nil {
+		return repo.CommitObject(ref.Hash())
+	}
+	
+	// Try with refs/heads/ prefix for branches
+	ref, err = repo.Reference(plumbing.ReferenceName("refs/heads/"+refName), true)
+	if err == nil {
+		return repo.CommitObject(ref.Hash())
+	}
+	
+	// Try with refs/tags/ prefix for tags
+	ref, err = repo.Reference(plumbing.ReferenceName("refs/tags/"+refName), true)
+	if err == nil {
+		return repo.CommitObject(ref.Hash())
+	}
+	
+	// Handle special revisions like HEAD~3, HEAD^2, etc.
+	if strings.Contains(refName, "~") || strings.Contains(refName, "^") {
+		parts := strings.Split(refName, "~")
+		baseName := parts[0]
+		
+		// Handle HEAD^ syntax
+		if strings.Contains(baseName, "^") {
+			baseParts := strings.Split(baseName, "^")
+			base := baseParts[0]
+			parentNum := 0
+			if len(baseParts) > 1 && baseParts[1] != "" {
+				fmt.Sscanf(baseParts[1], "%d", &parentNum)
+			}
+			
+			baseCommit, err := resolveGitRef(repo, base)
+			if err != nil {
+				return nil, err
+			}
+			
+			// Use the specified parent or default to first parent
+			if parentNum > 0 {
+				parent, err := baseCommit.Parent(parentNum - 1)
+				if err != nil {
+					return nil, err
+				}
+				baseCommit = parent
+			} else {
+				parent, err := baseCommit.Parent(0)
+				if err != nil {
+					return nil, err
+				}
+				baseCommit = parent
+			}
+			
+			// If there's a ~ part, traverse more ancestors
+			if len(parts) > 1 {
+				depth := 0
+				fmt.Sscanf(parts[1], "%d", &depth)
+				for i := 0; i < depth; i++ {
+					parent, err := baseCommit.Parent(0)
+					if err != nil {
+						return nil, err
+					}
+					baseCommit = parent
+				}
+			}
+			
+			return baseCommit, nil
+		}
+	}
+	
+	// Try resolving as a revision (this handles many cases like branch~3, HEAD~2, etc.)
+	revHash, err := repo.ResolveRevision(plumbing.Revision(refName))
+	if err == nil {
+		return repo.CommitObject(*revHash)
+	}
+	
+	return nil, fmt.Errorf("could not resolve git reference: %s", refName)
+}
+
+func handleRepo(repoPath string, functions []FunctionRange, baseRef, headRef string) {
 	r, err := git.PlainOpen(repoPath)
 	if err != nil {
 		fmt.Printf("Error opening repository: %v\n", err)
 		return
 	}
-	ref, err := r.Head()
+	
+	// Resolve head reference
+	headCommit, err := resolveGitRef(r, headRef)
 	if err != nil {
-		fmt.Printf("Error getting HEAD: %v\n", err)
+		fmt.Printf("Error resolving head ref '%s': %v\n", headRef, err)
 		return
 	}
-	commit, err := r.CommitObject(ref.Hash())
+	
+	// Resolve base reference
+	baseCommit, err := resolveGitRef(r, baseRef)
 	if err != nil {
-		fmt.Printf("Error getting commit: %v\n", err)
+		fmt.Printf("Error resolving base ref '%s': %v\n", baseRef, err)
 		return
 	}
-	parent, err := commit.Parent(0)
-	if err != nil {
-		fmt.Printf("Error getting parent commit: %v\n", err)
-		return
-	}
-	patch, err := commit.Patch(parent)
+	
+	// Get the patch between the two commits
+	patch, err := headCommit.Patch(baseCommit)
 	if err != nil {
 		fmt.Printf("Error getting patch: %v\n", err)
 		return
@@ -320,7 +476,7 @@ func handleRepo(repoPath string, functions []FunctionRange) {
 		removeResult = append(removeResult, fn)
 	}
 
-	printBothResults(addResult, removeResult, "last commit")
+	printBothResults(addResult, removeResult, fmt.Sprintf("%s..%s", baseRef, headRef))
 }
 func printBothResults(adds, deletes []string, treeType string) {
 	addLen := len(adds)

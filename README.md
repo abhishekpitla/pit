@@ -26,10 +26,10 @@ This enables more control to be placed in the hands of DevOps tools or junior de
 
 - Track endpoint changes in latest commit
 - Support for NestJS
+- Support for comparing any two Git refs (commits/branches/tags)
 
 ## Planned Features
 
-- Support for comparing any two Git refs (commits/branches/tags)
 - Support for major JavaScript frameworks
 - Support for staged/working tree changes
 - CI/CD integration
@@ -43,8 +43,27 @@ npm install -g pit
 
 ## Usage
 
+Basic usage with current working directory:
 ```bash
 pit
+```
+
+Compare different commits, branches, or tags:
+```bash
+# Compare two branches
+pit /path/to/repo main develop
+
+# Compare tags
+pit /path/to/repo v1.0 v2.0
+
+# Compare specific commits
+pit /path/to/repo abc123 def456
+
+# Use Git revision syntax
+pit /path/to/repo HEAD~3 HEAD
+
+# Specify a base ref but use HEAD as the comparison point
+pit /path/to/repo main
 ```
 
 ## Requirements
